@@ -54,34 +54,55 @@ function DisplayMovieSearch({ movie, onClose }) {
     );
   }
 
-  if (movie.error) {
-    return (
-      <div className="dms-popup-overlay">
-        <div className="dms-popup-content">
-          <button className="dms-close-btn" onClick={onClose}>✖</button>
-          <h2>Error</h2>
-          <p>An error occurred while searching for this movie. Please try again later.</p>
-        </div>
-      </div>
-    );
-  }
-
   const renderMovieCard = (item) => {
-    const imageUrl = item.image_url ? `http://localhost:8000${item.image_url}` : '/path/to/default/image.jpg';
+    // UPDATED: image_url is now a direct OMDb link, so we use it as is
+    const imageUrl = item.image_url || '/path/to/default/image.jpg';
     const allReviews = [...(item.reviews || []), ...(localReviews[item.id] || [])];
 
     return (
       <div key={item.id} className="dms-movie-item">
         <div className="dms-movie-card">
-          <h3 className="dms-movie-title">{item.title}</h3>
+          <h3 className="dms-movie-title">{item.title} ({item.year})</h3>
+          
           <div className="dms-movie-content">
-            {item.image_url && (
-              <div className="dms-image-container">
-                <img src={imageUrl} alt={item.title} className="dms-movie-image" />
-              </div>
-            )}
+            <div className="dms-image-container">
+              <img src={imageUrl} alt={item.title} className="dms-movie-image" />
+            </div>
+
             <div className="dms-movie-details">
-              <p><strong>Description:</strong> {item.description}</p>
+              {/* NEW: Displaying Synopsis and Storyline separately */}
+              <div className="dms-detail-box">
+                <strong>Synopsis (Official):</strong>
+                <p>{item.synopsis}</p>
+              </div>
+
+              <div className="dms-detail-box" style={{ marginTop: '10px' }}>
+                <strong>Storyline (Contributor Input):</strong>
+                <p>{item.storyline}</p>
+              </div>
+
+              {/* NEW: Displaying Mood Tags */}
+              {item.moods && item.moods.length > 0 && (
+                <div className="dms-moods-container" style={{ marginTop: '10px' }}>
+                  <strong>Moods:</strong>
+                  <div className="dms-mood-tags">
+                    {item.moods.map((m, i) => (
+                      <span key={i} className="dms-mood-tag" style={{
+                        display: 'inline-block',
+                        background: '#e0e7ff',
+                        color: '#4338ca',
+                        padding: '2px 8px',
+                        borderRadius: '12px',
+                        fontSize: '0.75rem',
+                        marginRight: '5px',
+                        marginTop: '5px'
+                      }}>
+                        {m}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              )}
             </div>
           </div>
 
@@ -92,7 +113,9 @@ function DisplayMovieSearch({ movie, onClose }) {
                 {allReviews.map((review, index) => (
                   <div key={index} className="dms-review-item">
                     <p className="dms-review-text">{review.review}</p>
-                    <p className="dms-review-date"><em>Posted on: {new Date(review.created_at).toLocaleDateString()}</em></p>
+                    <p className="dms-review-date">
+                      <em>Posted on: {new Date(review.created_at).toLocaleDateString()}</em>
+                    </p>
                   </div>
                 ))}
               </div>

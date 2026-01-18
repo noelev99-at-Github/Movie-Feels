@@ -15,10 +15,18 @@ function MovieRecommendationPage() {
   const [explode, setExplode] = useState(false);
 
   const moods = [
-    'Happy', 'Sad', 'Excited', 'Thrilled', 'Bored', 'Stressed', 'Relaxed',
-    'Angry', 'Frustrated', 'Lonely', 'Grief', 'Heartbroken', 'Hopeless',
-    'Nostalgic', 'Romantic', 'Adventurous', 'Magical', 'Scared', 'Confident',
-    'Calm', 'Curious', 'Joyful', 'Reflective'
+      'Love · Romance · Family · Community · Belonging · Home',
+      'Happy · Playful · Bright · Feel-good · Carefree',
+      'Hopeful · Healing · Optimistic · Reassuring',
+      'Excited · Adventurous · Fun · Escapist',
+      'Reflective· Introspective · Contemplative About Life',
+      'Calm · Peaceful · Relaxed · Soft · Gentle',
+      'Curious · Engaged · Intrigued · Mentally Active',
+      'Intense · Emotional · Cathartic · Bittersweet',
+      'Lonely · Isolated · Unseen · Longing',
+      'Angry · Frustrated · Irritated · Stressed',
+      'Hopeless · Sad · Heartbroken · Melancholy',
+      'Scared · Anxious · Uneasy · Tense · Nervous'
   ];
 
   const handleMoodSelection = (mood) => {
@@ -78,15 +86,15 @@ function MovieRecommendationPage() {
           <div className="mood-section">
             <h2>
               What are you feeling?
-              <span className="selection-count"><br />(Select up to 5: {selectedMoods.length}/5)</span>
+              <span className="selection-count"><br />(Select up to 3: {selectedMoods.length}/3)</span>
             </h2>
             <div className="mood-grid">
               {moods.map((mood) => (
                 <button
                   key={mood}
-                  className={`mood-button ${selectedMoods.includes(mood) ? 'selected' : ''} ${selectedMoods.length >= 5 && !selectedMoods.includes(mood) ? 'disabled' : ''}`}
+                  className={`mood-button ${selectedMoods.includes(mood) ? 'selected' : ''} ${selectedMoods.length >= 3 && !selectedMoods.includes(mood) ? 'disabled' : ''}`}
                   onClick={() => handleMoodSelection(mood)}
-                  disabled={selectedMoods.length >= 5 && !selectedMoods.includes(mood)}
+                  disabled={selectedMoods.length >= 3 && !selectedMoods.includes(mood)}
                 >
                   {mood}
                 </button>
@@ -103,14 +111,14 @@ function MovieRecommendationPage() {
                 onClick={() => setPreference('congruence')}
               >
                 <h3>Mood Congruence</h3>
-                <p>Movies that match your current mood.</p>
+                <p>Sometimes we need to sit with our feelings to fully process them. This selection offers stories that resonate with your current headspace, providing a cathartic emotional release that helps you let out bottled-up emotions by experiencing them through the characters.</p>
               </div>
               <div
                 className={`preference-card ${preference === 'incongruence' ? 'selected' : ''}`}
                 onClick={() => setPreference('incongruence')}
               >
                 <h3>Mood Incongruence</h3>
-                <p>Movies that contrast your mood to uplift you.</p>
+                <p>If you're looking for a change of pace, this option helps shift your perspective. By introducing contrasting emotions, these films act as a catalyst to pull you out of your current state. It’s the perfect choice when you’re ready to break the cycle and feel something new.</p>
               </div>
             </div>
           </div>

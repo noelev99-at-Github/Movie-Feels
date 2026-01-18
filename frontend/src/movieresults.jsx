@@ -21,6 +21,8 @@ function MovieResults({ formData }) {
   if (!formData || !showResults) return null;
 
   const { message, movies } = formData;
+  
+  // Logic to handle how movies are ranked based on the match_score
   const allAreOnes = movies.every(movie => movie.match_score === 1);
   const filteredMovies = allAreOnes ? movies : movies.filter(movie => movie.match_score !== 1);
 
@@ -46,19 +48,37 @@ function MovieResults({ formData }) {
             {filteredMovies.map(movie => (
               <div key={movie.id} className="standalone-card">
                 <div className="standalone-poster-wrap">
+                  {/* UPDATED: Directly using the OMDb image URL */}
                   <img
-                    src={`http://localhost:8000/static/${movie.image_url.replace('/uploaded_images/', '')}`}
+                    src={movie.image_url}
                     alt={movie.title}
+                    onError={(e) => { e.target.src = '/fallback-poster.jpg'; }} // Fallback if link breaks
                   />
                 </div>
 
                 <div className="standalone-details">
-                  <h3>{movie.title}</h3>
+                  <h3>{movie.title} ({movie.year})</h3>
+                  
                   <p className="standalone-score">
                     🎯 Match Score: <strong>{movie.match_score}</strong>
                   </p>
 
-                  {movie.description && <p className="standalone-desc">{movie.description}</p>}
+                  {/* NEW: Synopsis vs Storyline split */}
+                  <div className="standalone-story-section">
+                    {movie.synopsis && (
+                      <div className="standalone-synopsis">
+                        <strong>The Plot:</strong>
+                        <p>{movie.synopsis}</p>
+                      </div>
+                    )}
+                    
+                    {movie.storyline && (
+                      <div className="standalone-personal-storyline">
+                        <strong>Why it fits this mood:</strong>
+                        <p>{movie.storyline}</p>
+                      </div>
+                    )}
+                  </div>
 
                   <div className="standalone-moods">
                     {movie.moods.map((mood, idx) => (
@@ -67,7 +87,7 @@ function MovieResults({ formData }) {
                   </div>
 
                   <div className="standalone-reviews">
-                    <h4>🗣️ Reviews</h4>
+                    <h4>🗣️ Personal Thoughts</h4>
                     {movie.reviews && movie.reviews.length > 0 ? (
                       <ul>
                         {movie.reviews.map((review, idx) => (
@@ -75,7 +95,7 @@ function MovieResults({ formData }) {
                         ))}
                       </ul>
                     ) : (
-                      <p className="standalone-no-reviews">No reviews available.</p>
+                      <p className="standalone-no-reviews">No personal reviews yet.</p>
                     )}
                   </div>
                 </div>

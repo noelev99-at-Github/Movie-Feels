@@ -14,8 +14,14 @@ body {
   align-items: flex-start;
   padding: 30px 10px;
   min-height: 100vh;
-  background: radial-gradient(circle at center, #2a1a4b, #0b0c1a, #120b2e);
   position: relative;
+background: radial-gradient(
+  circle at center,
+  #2a1a4b 0%,
+  #1a1338 60%,
+  #120b2e 100%
+);/* more vibrant gradient */
+
 }
 
 .movie-recommendation-page::before {
@@ -31,7 +37,6 @@ body {
   animation: twinkle 5s infinite alternate;
   pointer-events: none;
 }
-
 
 @keyframes twinkle {
   0% { opacity: 0.05; }
@@ -70,34 +75,45 @@ body {
 }
 
 /* -------- MOOD GRID -------- */
-.mood-section {
-  display: flex;
-  flex-direction: column;
-  gap: 15px;
-}
 
 .mood-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
-  gap: 10px;
-  justify-items: center;
+  display: flex;            /* switch to flex layout */
+  flex-direction: column;   /* stack buttons vertically */
+  gap: 15px;                /* space between buttons */
+  align-items: center;      /* center buttons horizontally */
+  width: 100%;              /* take full container width */
 }
 
 .mood-button {
-  width: 100%; /* uniform width */
-  padding: 10px 0;
-  border-radius: 20px;
+  width: 100%;              /* occupy full row */
+  max-width: 500px;         /* optional: caps width on large screens */
+  padding: 15px 0;
+  border-radius: 10px;
   border: 2px solid #ff2dcb;
   background: transparent;
   color: #fff;
+  text-align: center;
+  font-weight: 500;
   cursor: pointer;
   transition: all 0.3s ease;
-  text-align: center;
+}
+
+.mood-button:hover,
+.mood-button:focus {
+  background: rgba(255, 45, 203, 0.1); /* subtle hover effect */
 }
 
 .mood-button.selected {
-  background: #ff2dcb;
-  color: #120b2e;
+  background: white; /* pale yellow, almost whitish */
+  color: #120b2e;      /* keeps text dark for contrast */
+  font-weight: 600;
+  border: 2px solid white;
+
+  /* Neon glow effect */
+  box-shadow: 
+    0 0 8px #fff9a0,   /* small inner glow */
+    0 0 20px #fff9a0,  /* medium outer glow */
+    0 0 40px #fff9a0;  /* larger diffused glow */
 }
 
 .mood-button.disabled {
@@ -136,9 +152,14 @@ body {
 }
 
 .preference-card.selected {
-  background: #00ffe0;
+  background: white;
   color: #120b2e;
   box-shadow: 0 5px 15px rgba(0, 255, 224, 0.3);
+
+    box-shadow: 
+    0 0 8px #fff9a0,   /* small inner glow */
+    0 0 20px #fff9a0,  /* medium outer glow */
+    0 0 40px #fff9a0;  /* larger diffused glow */
 }
 
 .preference-card h3 {
@@ -176,8 +197,7 @@ body {
 
 .personal-section textarea:focus {
   outline: none;
-  border-color: #00ffe0;
-  box-shadow: 0 0 10px rgba(0, 255, 224, 0.3);
+  border-color: #fff9a0;
 
 }
 

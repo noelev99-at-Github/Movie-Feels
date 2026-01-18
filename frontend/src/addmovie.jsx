@@ -1,62 +1,100 @@
 import React, { useState } from 'react';
+import axios from 'axios';
 import './addmovie.css';
+import { GoogleGenerativeAI } from '@google/generative-ai';
 
 function AddMovieReview({ showModal, onClose }) {
+  // 2. Initialize Gemini AI
+  const genAI = new GoogleGenerativeAI('AIzaSyDOkrHMXKmLmo8qgsBb-CnCnDfG6BU5QEQ'); 
+  const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash" });
+
   // ---------------- State ----------------
   const [formData, setFormData] = useState({
     image: null,
+    displayPoster: '',
     title: '',
-    description: '',
-    mood: [],
+    year: '',
+    synopsis: '',  // Plot from OMDb
+    storyline: '', // NOW AUTO-FILLED by Gemini
+    mood: {},
     review: '',
   });
 
+  const [searchStatus, setSearchStatus] = useState('idle');
   const [error, setError] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  // ---------------- Constants ----------------
   const moods = [
-    'Sad', 'Happy', 'Bored', 'Grief', 'Magical',
-    'Excited', 'Loneliness', 'Romance', 'Adventurous', 'Brokenhearted',
-    'Optimistic', 'Thrilled', 'Stressed', 'Relaxed & Carefree', 'Scared',
-    'Angry', 'Community Joy', 'Hopeless', 'Nostalgia'
+    'Love · Romance · Family · Community · Belonging · Home',
+    'Happy · Playful · Bright · Feel-good · Carefree',
+    'Hopeful · Healing · Optimistic · Reassuring',
+    'Excited · Adventurous · Fun · Escapist',
+    'Reflective· Introspective · Contemplative About Life',
+    'Calm · Peaceful · Relaxed · Soft · Gentle',
+    'Curious · Engaged · Intrigued · Mentally Active',
+    'Intense · Emotional · Cathartic · Bittersweet',
+    'Lonely · Isolated · Unseen · Longing',
+    'Angry · Frustrated · Irritated · Stressed',
+    'Hopeless · Sad · Heartbroken · Melancholy',
+    'Scared · Anxious · Uneasy · Tense · Nervous'
   ];
 
   // ---------------- Handlers ----------------
+  const handleSearchMovie = async () => {
+    if (!formData.title) return setError("Please enter a movie title first");
+    setSearchStatus('loading');
+    setError('');
+
+    try {
+      // Step A: Fetch data from OMDb
+      const res = await axios.get("https://www.omdbapi.com/", {
+        params: { apikey: "2c6bd367", t: formData.title, y: formData.year, plot: "full" }
+      });
+      if (res.data.Response === "False") throw new Error(res.data.Error || "Movie not found");
+
+      const fetchedTitle = res.data.Title;
+      const fetchedYear = res.data.Year;
+      const fetchedPlot = res.data.Plot;
+
+      // Step B: Call Gemini AI to generate a custom storyline summary
+      let aiStoryline = '';
+      try {
+        // Sending title and year data along with the specific prompt requested
+        const prompt = `Generate 1 paragraph summarize storyline for this movie: ${fetchedTitle} (${fetchedYear})`;
+        const result = await model.generateContent(prompt);
+        const response = await result.response;
+        aiStoryline = response.text(); 
+      } catch (aiErr) {
+        console.error("Gemini failed:", aiErr);
+        aiStoryline = "AI summary unavailable. Please fill manually.";
+      }
+
+      // Step C: Update state - Storyline is now autofilled with Gemini data
+      setFormData(prev => ({
+        ...prev,
+        title: fetchedTitle,
+        year: fetchedYear,
+        synopsis: fetchedPlot, 
+        storyline: aiStoryline, // Autofilled from Gemini response
+        displayPoster: res.data.Poster !== "N/A" ? res.data.Poster : ''
+      }));
+      setSearchStatus('found');
+    } catch (err) {
+      setError(err.message);
+      setSearchStatus('idle');
+    }
+  };
+
   const handleChange = (e) => {
     const { name, value } = e.target;
     setFormData(prev => ({ ...prev, [name]: value }));
-    setError('');
   };
 
-  const handleImageChange = (e) => {
-    const file = e.target.files[0];
-    if (!file) return;
-
-    if (file.size > 5 * 1024 * 1024) {
-      setError('Image size should be less than 5MB');
-      e.target.value = '';
-      return;
-    }
-
-    if (!file.type.match('image.*')) {
-      setError('Please select a valid image file');
-      e.target.value = '';
-      return;
-    }
-
-    setFormData(prev => ({ ...prev, image: file }));
-    setError('');
-  };
-
-  const toggleMood = (mood) => {
+  const handleMoodChange = (mood, value) => {
+    const numericValue = value === '' ? '' : Math.min(1, Math.max(0, parseFloat(value) || 0));
     setFormData(prev => ({
       ...prev,
-      mood: prev.mood.includes(mood)
-        ? prev.mood.filter(m => m !== mood)
-        : prev.mood.length < 5
-          ? [...prev.mood, mood]
-          : prev.mood
+      mood: { ...prev.mood, [mood]: numericValue }
     }));
   };
 
@@ -66,138 +104,132 @@ function AddMovieReview({ showModal, onClose }) {
     setIsSubmitting(true);
 
     try {
-      if (!formData.image) throw new Error('Please select an image');
-      if (formData.mood.length === 0) throw new Error('Please select at least one mood');
+      const filteredMoods = Object.fromEntries(
+        Object.entries(formData.mood).filter(([_, val]) => val > 0)
+      );
+
+      if (Object.keys(filteredMoods).length === 0) {
+        throw new Error('Please rate at least one emotion');
+      }
 
       const uploadData = new FormData();
-      uploadData.append('image', formData.image);
+      uploadData.append('image_url', formData.displayPoster); 
       uploadData.append('title', formData.title);
-      uploadData.append('description', formData.description);
+      uploadData.append('year', formData.year);
+      uploadData.append('synopsis', formData.synopsis);
+      uploadData.append('storyline', formData.storyline); 
       uploadData.append('review', formData.review);
-      uploadData.append('moods', formData.mood.join(','));
+      uploadData.append('moods', JSON.stringify(filteredMoods));
 
       const response = await fetch('http://localhost:8000/api/movies', {
         method: 'POST',
         body: uploadData,
       });
 
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}));
-        throw new Error(errorData.detail || 'Failed to submit movie');
-      }
-
-      const data = await response.json();
-      console.log('Success:', data);
+      if (!response.ok) throw new Error('Failed to submit movie');
 
       alert('Movie review submitted successfully!');
-      setFormData({ image: null, title: '', description: '', mood: [], review: '' });
       onClose();
-
     } catch (err) {
-      console.error('Error:', err);
-      setError(err.message || 'Something went wrong. Please try again.');
+      setError(err.message);
     } finally {
       setIsSubmitting(false);
     }
   };
 
-  // ---------------- UI ----------------
   if (!showModal) return null;
 
   return (
     <div className="modal-backdrop">
-      <div className="modal-content">
+      <div className="modal-content" style={{ width: '600px', maxWidth: '95%', maxHeight: '90vh', overflowY: 'auto' }}>
         <button className="close-button" onClick={onClose}>×</button>
-        <h2>Add New Movie for Review</h2>
+        <h2>Add Movie Review</h2>
 
-        {error && <div className="error-message">{error}</div>}
+        {searchStatus === 'loading' && (
+          <p style={{color: '#1d4ed8', fontWeight: 'bold'}}>
+            ✨ Gemini AI is analyzing the movie and writing your summary...
+          </p>
+        )}
 
-        <form onSubmit={handleSubmit} className="movie-form">
-          {/* Image Upload */}
-          <div className="image-input-group">
-            <label htmlFor="movieImage">Movie Image:</label>
-            <label htmlFor="movieImage" className="custom-file-upload">Choose Image</label>
-            <input
-              type="file"
-              id="movieImage"
-              name="image"
-              accept="image/*"
-              onChange={handleImageChange}
-              required
-            />
-            {formData.image && (
-              <>
-                <div className="file-name">{formData.image.name}</div>
-                <div className="image-preview">
-                  <img src={URL.createObjectURL(formData.image)} alt="Movie Preview" />
-                </div>
-              </>
-            )}
-          </div>
+        {error && <div className="error-message" style={{ color: 'red', marginBottom: '10px' }}>{error}</div>}
 
-          {/* Title */}
-          <label>
-            Movie Title:
-            <input
-              type="text"
-              name="title"
-              value={formData.title}
-              onChange={handleChange}
-              required
-            />
-          </label>
-
-          {/* Description */}
-          <label>
-            Movie Description:
-            <textarea
-              name="description"
-              rows="3"
-              value={formData.description}
-              onChange={handleChange}
-              required
-            />
-          </label>
-
-          {/* Mood Selection */}
-          <div className="mood-section">
-            <h3>How did the movie make you feel? (Select up to 5)</h3>
-            <div className="mood-grid">
-              {moods.map(mood => (
-                <button
-                  type="button"
-                  key={mood}
-                  className={`mood-button ${formData.mood.includes(mood) ? 'selected' : ''} ${formData.mood.length >= 5 && !formData.mood.includes(mood) ? 'disabled' : ''}`}
-                  onClick={() => toggleMood(mood)}
-                  disabled={formData.mood.length >= 5 && !formData.mood.includes(mood)}
-                >
-                  {mood}
-                </button>
-              ))}
+        <div className="movie-form">
+          <div className="search-section" style={{ borderBottom: '1px solid #eee', paddingBottom: '15px' }}>
+            <div style={{ display: 'flex', gap: '10px' }}>
+              <input style={{ flex: 2 }} type="text" name="title" value={formData.title} onChange={handleChange} placeholder="Movie Title..." />
+              <input style={{ flex: 1 }} type="text" name="year" value={formData.year} onChange={handleChange} placeholder="Year" />
             </div>
+            <button type="button" onClick={handleSearchMovie} className="submit-button" style={{ background: '#1d4ed8', marginTop: '10px' }}>
+              {searchStatus === 'loading' ? 'Processing...' : 'Search & Auto-fill'}
+            </button>
           </div>
 
-          {/* Personal Review */}
-          <label>
-            Personal Review:
-            <textarea
-              name="review"
-              rows="4"
-              value={formData.review}
-              onChange={handleChange}
-              required
-            />
-          </label>
+          <form onSubmit={handleSubmit}>
+            {formData.displayPoster && (
+              <div style={{ textAlign: 'center', margin: '15px 0' }}>
+                <img src={formData.displayPoster} alt="Poster" style={{ maxHeight: '150px', borderRadius: '8px' }} />
+              </div>
+            )}
 
-          {/* Submit Button */}
-          <button
-            type="submit"
-            className="submit-button"
-            disabled={isSubmitting}
-          >
-            {isSubmitting ? 'Submitting...' : 'Submit Review'}
-          </button>
-        </form>
+            <div className="mood-section">
+              <h3>Rate the Intensity (0 to 1.0)</h3>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                {moods.map(m => (
+                  <div key={m} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '5px', background: 'black', color: 'white', borderRadius: '4px' }}>
+                    <span style={{ fontSize: '0.85rem', flex: 1 }}>{m}</span>
+                    <input
+                      type="number" step="0.1" min="0" max="1" placeholder="0.0"
+                      value={formData.mood[m] || ''}
+                      onChange={(e) => handleMoodChange(m, e.target.value)}
+                      style={{ width: '60px', marginLeft: '10px', textAlign: 'center' }}
+                    />
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            <label style={{ marginTop: '15px', display: 'block' }}>
+              Synopsis (Objective Plot from OMDb):
+              <textarea 
+                name="synopsis" 
+                rows="3" 
+                value={formData.synopsis} 
+                onChange={handleChange} 
+                placeholder="The OMDb plot summary will appear here..."
+              />
+            </label>
+
+            {/* STORYLINE SECTION - AUTO-FILLED BY GEMINI */}
+            <label style={{ marginTop: '15px', display: 'block', border: '1px solid #c0d8f0', padding: '10px', borderRadius: '8px', backgroundColor: '#f0f7ff' }}>
+              <span style={{color: '#1d4ed8', fontWeight: 'bold'}}>✨ Storyline (AI Summary):</span>
+              <textarea 
+                name="storyline" 
+                rows="4" 
+                value={formData.storyline} 
+                onChange={handleChange} 
+                placeholder="Gemini will summarize the storyline here..."
+                required 
+                style={{ backgroundColor: 'white' }}
+              />
+            </label>
+
+            <label style={{ marginTop: '15px', display: 'block' }}>
+              Your Personal Review:
+              <textarea 
+                name="review" 
+                rows="4" 
+                value={formData.review} 
+                onChange={handleChange} 
+                placeholder="What did you think about it?"
+                required 
+              />
+            </label>
+
+            <button type="submit" className="submit-button" style={{ marginTop: '20px' }} disabled={isSubmitting}>
+              {isSubmitting ? 'Submitting...' : 'Submit Review'}
+            </button>
+          </form>
+        </div>
       </div>
     </div>
   );
