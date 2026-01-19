@@ -331,16 +331,7 @@ async def receive_user_input(request: MovieRecommendationRequest, db: AsyncSessi
     }
 
     try:
-        # STEP 1: Fetch movies with Relationships
-        # .unique() is required when using selectinload in AsyncSession
-        stmt = select(Movie).options(
-            selectinload(Movie.moods), 
-            selectinload(Movie.reviews)
-        )
-        result = await db.execute(stmt)
-        movies = result.unique().scalars().all()
-
-        # STEP 2: Logic for Congruence vs Incongruence
+        # STEP 1 & 2: Calculate Target Moods FIRST to filter the Database Query
         target_mood_strings = []
         if request.preference == 'congruence':
             target_mood_strings = request.moods
@@ -349,55 +340,109 @@ async def receive_user_input(request: MovieRecommendationRequest, db: AsyncSessi
                 # Get the repair list or fallback to the current mood if not in map
                 repair_targets = mood_repair_map.get(user_mood, [user_mood])
                 target_mood_strings.extend(repair_targets)
+            # Remove duplicates
             target_mood_strings = list(set(target_mood_strings))
 
-        # STEP 3: Initial Matching
+        # FETCHING FILTER: Pull movies with mood scores from the junction table
+        stmt = (
+            select(Movie, MovieMood.score, Mood.mood_name)
+            .join(MovieMood, Movie.id == MovieMood.movie_id)
+            .join(Mood, MovieMood.mood_id == Mood.id)
+            .where(Mood.mood_name.in_(target_mood_strings))
+            .options(
+                selectinload(Movie.moods), 
+                selectinload(Movie.reviews)
+            )
+        )
+        
+        result = await db.execute(stmt)
+        rows = result.all()
+
+        # Get ALL mood scores for each movie (not just target moods)
+        all_moods_stmt = (
+            select(Movie.id, Mood.mood_name, MovieMood.score)
+            .join(MovieMood, Movie.id == MovieMood.movie_id)
+            .join(Mood, MovieMood.mood_id == Mood.id)
+        )
+        all_moods_result = await db.execute(all_moods_stmt)
+        all_moods_rows = all_moods_result.all()
+        
+        # Store all mood-score pairs for each movie
+        movie_all_moods = {}
+        for movie_id, mood_name, mood_score in all_moods_rows:
+            if movie_id not in movie_all_moods:
+                movie_all_moods[movie_id] = []
+            movie_all_moods[movie_id].append({
+                "mood": mood_name,
+                "score": round(float(mood_score or 0), 2)
+            })
+
+        # STEP 3: Aggregate scores per movie
+        movie_scores = {}
+        for movie, mood_score, mood_name in rows:
+            if movie.id not in movie_scores:
+                movie_scores[movie.id] = {
+                    "movie": movie,
+                    "total_score": 0.0,
+                    "matching_moods": []
+                }
+            # Sum the scores from movie_moods table for matching target moods
+            movie_scores[movie.id]["total_score"] += float(mood_score or 0)
+            movie_scores[movie.id]["matching_moods"].append(mood_name)
+
+        # STEP 4: Format matched movies with aggregated scores
         matched_movies = []
-        for movie in movies:
-            movie_mood_names = [m.mood_name for m in movie.moods]
-            matches = set(movie_mood_names) & set(target_mood_strings)
-            score = len(matches)
-
-            if score > 0:
-                # DATABASE FIX: Accessing .review instead of .review_content
-                review_text = movie.reviews[0].review if movie.reviews else ""
-                
-                matched_movies.append({
-                    "id": movie.id,
-                    "title": movie.title,
-                    "year": movie.year,
-                    "image_url": movie.image_url,
-                    "synopsis": movie.synopsis,
-                    "storyline": movie.storyline,
-                    "review": review_text,
-                    "moods": movie_mood_names,
-                    "match_score": float(score),
-                    "ai_boosted": False
-                })
-
-        # STEP 4: AI Reranking with Gemini 2.5 Flash
-        if request.personalNotes and len(matched_movies) > 0:
-            # Send top 10 potential candidates to AI to save tokens/speed
-            ai_candidates = matched_movies[:10]
+        for movie_data in movie_scores.values():
+            movie = movie_data["movie"]
+            total_score = movie_data["total_score"]
             
+            movie_mood_names = [m.mood_name for m in movie.moods]
+            review_text = movie.reviews[0].review if movie.reviews else ""
+            
+            matched_movies.append({
+                "id": movie.id,
+                "title": movie.title,
+                "year": movie.year,
+                "image_url": movie.image_url,
+                "synopsis": movie.synopsis,
+                "storyline": movie.storyline,
+                "review": review_text,
+                "moods": movie_mood_names,
+                "mood_scores": movie_all_moods.get(movie.id, []),
+                "match_score": round(total_score, 2),
+                "ai_selected": False
+            })
+
+        # STEP 5: AI Selection & Tiering
+        ai_selected_movies = []
+        non_selected_movies = []
+        
+        if request.personalNotes and len(matched_movies) > 0:
+            # Sort candidate pool so AI evaluates the best tag-matches first (Top 10)
+            matched_movies.sort(key=lambda x: x["match_score"], reverse=True)
+            ai_candidates = matched_movies[:10]
+
             ai_input_data = [
-                {
-                    "title": m["title"], 
-                    "storyline": m["storyline"], 
-                    "review": m["review"]
-                } for m in ai_candidates
+                {"title": m["title"], "storyline": m["storyline"]} 
+                for m in ai_candidates
             ]
 
             prompt = f"""
-            User Note: "{request.personalNotes}"
-            User Preference: {request.preference} (Congruence: Match mood, Incongruence: Shift mood).
-            Target Mood Context: {", ".join(target_mood_strings)}
+User Note: "{request.personalNotes}"
+User Preference: {request.preference}
+Target Moods: {', '.join(target_mood_strings)}
 
-            Rank these movies from best to worst based on the user's note.
-            Movies: {ai_input_data}
-            
-            Return ONLY a comma-separated list of titles.
-            """
+TASK:
+Analyze which movies' storylines BEST FIT the user's personal situation described in their note.
+Select only the movies that are truly relevant and helpful.
+
+Movies to evaluate:
+{ai_input_data}
+
+Return ONLY a comma-separated list of the movie titles that best fit, first entry should be the best fit, second, etc. 
+If none are relevant, return "NONE". 
+Do NOT rank them.
+"""
 
             try:
                 response = await client.aio.models.generate_content(
@@ -406,25 +451,44 @@ async def receive_user_input(request: MovieRecommendationRequest, db: AsyncSessi
                 )
                 
                 if response and response.text:
-                    ranked_titles = [t.strip().lower() for t in response.text.split(',')]
-                    total = len(ranked_titles)
+                    raw_text = response.text.strip()
+                    selected_titles = []
                     
-                    for index, title in enumerate(ranked_titles):
-                        boost = total - index
-                        for m in matched_movies:
-                            if m["title"].lower() == title:
-                                m["match_score"] += boost
-                                m["ai_boosted"] = True
+                    if raw_text.upper() != "NONE":
+                        selected_titles = [t.strip().lower() for t in raw_text.split(',')]
+                    
+                    # Distribute movies into the two tiers
+                    for movie in matched_movies:
+                        if movie["title"].lower() in selected_titles:
+                            movie["ai_selected"] = True
+                            # Store original score for potential future use
+                            movie["original_score"] = movie["match_score"]
+                            # Change the match_score display to the custom string
+                            movie["match_score"] = "AI Suggested"
+                            ai_selected_movies.append(movie)
+                        else:
+                            non_selected_movies.append(movie)
+                else:
+                    non_selected_movies = matched_movies.copy()
+
             except Exception as ai_err:
                 print(f"AI Error: {ai_err}")
+                non_selected_movies = matched_movies.copy()
+        else:
+            # If no notes, all movies remain in the default ranking tier
+            non_selected_movies = matched_movies.copy()
 
-        # STEP 5: Final Sorting
-        matched_movies.sort(key=lambda x: x["match_score"], reverse=True)
+        # STEP 6: Sort the non-selected tier by numerical match score
+        non_selected_movies.sort(key=lambda x: x["match_score"], reverse=True)
+
+        # STEP 7: Final Sequence (AI Suggestions FIRST, followed by Rank-based results)
+        final_movies = ai_selected_movies + non_selected_movies
 
         return {
             "preference": request.preference,
             "target_moods": target_mood_strings,
-            "movies": matched_movies
+            "ai_selected_count": len(ai_selected_movies),
+            "movies": final_movies
         }
 
     except Exception as e:

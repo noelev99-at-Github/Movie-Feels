@@ -72,32 +72,30 @@ function MovieResults({ formData }) {
                       </div>
                     )}
                     
-                    {movie.storyline && (
-                      <div className="standalone-personal-storyline">
-                        <strong>Why it fits this mood:</strong>
-                        <p>{movie.storyline}</p>
-                      </div>
-                    )}
                   </div>
 
+                  {/* Moods with Scores Section */}
                   <div className="standalone-moods">
-                    {movie.moods.map((mood, idx) => (
-                      <span key={idx} className="standalone-mood">{mood}</span>
-                    ))}
-                  </div>
-
-                  <div className="standalone-reviews">
-                    <h4>🗣️ Personal Thoughts</h4>
-                    {movie.reviews && movie.reviews.length > 0 ? (
-                      <ul>
-                        {movie.reviews.map((review, idx) => (
-                          <li key={idx}>"{review}"</li>
-                        ))}
-                      </ul>
+                    {/* If mood_scores exists and has data, sort and show moods with scores */}
+                    {movie.mood_scores && movie.mood_scores.length > 0 ? (
+                      [...movie.mood_scores]
+                        .sort((a, b) => b.score - a.score) // Sorts descending (highest score first)
+                        .map((moodScore, idx) => (
+                          <span key={idx} className="standalone-mood">
+                            {moodScore.mood} 
+                            <span className="mood-score-badge">
+                              <strong>{" ( "}{moodScore.score}{" ) "}</strong>
+                            </span>
+                          </span>
+                        ))
                     ) : (
-                      <p className="standalone-no-reviews">No personal reviews yet.</p>
+                      /* Fallback: If no mood_scores, show regular moods */
+                      movie.moods && movie.moods.map((mood, idx) => (
+                        <span key={idx} className="standalone-mood">{mood}</span>
+                      ))
                     )}
                   </div>
+
                 </div>
               </div>
             ))}

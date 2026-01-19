@@ -5,7 +5,7 @@ import { GoogleGenerativeAI } from '@google/generative-ai';
 
 function AddMovieReview({ showModal, onClose }) {
   // 2. Initialize Gemini AI
-  const genAI = new GoogleGenerativeAI('AIzaSyDOkrHMXKmLmo8qgsBb-CnCnDfG6BU5QEQ'); 
+  const genAI = new GoogleGenerativeAI('AIzaSyCQUjmVJcIoe2jxR9Ld42DyXpAnTMKTIko'); 
   const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash" });
 
   // ---------------- State ----------------
