@@ -18,15 +18,15 @@ A form I designed to collect relevant data from users:
 - Mood congruence or incongruence
 - Optional text box, *“How’s life?”*, where users can freely describe how they feel
 
-### Movie Search
-Allows users to check if a movie exists in the local database.
+### Personal Design of the Recommendation Algorithm
+The hardest part of the project. One of the guiding ideas of this project is to provide movie suggestions that meet you where you are. I’m continuously refining the algorithm and learning along the way to improve its recommendations.
 
 ### Adding Movie
 From Version 1’s manual input to Version 3’s automated data input sourced from the OMDb external API, users only need to provide the title (and date if needed for more accuracy). The system automatically generates a more detailed movie storyline using Generative AI.  
 I designed it this way because I don’t want random movies in the database—I want users to feel like they’re contributing by adding movies they think others will enjoy.
 
-### Personal Design of the Recommendation Algorithm
-The hardest part of the project. One of the guiding ideas of this project is to provide movie suggestions that meet you where you are. I’m continuously refining the algorithm and learning along the way to improve its recommendations.
+### Movie Search
+Allows users to check if a movie exists in the local database.
 
 ---
 
