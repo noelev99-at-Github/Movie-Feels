@@ -19,7 +19,7 @@ function MovieRecommendationPage() {
       'Happy · Playful · Bright · Feel-good · Carefree',
       'Hopeful · Healing · Optimistic · Reassuring',
       'Excited · Adventurous · Fun · Escapist',
-      'Reflective· Introspective · Contemplative About Life',
+      'Reflective · Introspective · Contemplative About Life',
       'Calm · Peaceful · Relaxed · Soft · Gentle',
       'Curious · Engaged · Intrigued · Mentally Active',
       'Intense · Emotional · Cathartic · Bittersweet',

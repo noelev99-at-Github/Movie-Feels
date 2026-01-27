@@ -11,7 +11,7 @@ function App() {
           <div className="bubble-content">
             <h1 className="title">Movie Feels</h1>
             <p className="subtitle">
-              Harnessing AI and real community reviews to give you movie recommendations that will meet you where you are.
+              Harnessing AI and movie storylines to give you movie recommendations that will meet you where you are.
             </p>
             <p className="subtitle2">
               "Movies let us explore emotions we can’t always express, confront ideas we might avoid, and experience worlds beyond our own. They remind us of our shared humanity, offer comfort in solitude, and sometimes, in the quiet of a story, help us make sense of our own lives."

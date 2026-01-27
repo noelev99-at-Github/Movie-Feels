@@ -293,17 +293,22 @@ async def receive_user_input(request: MovieRecommendationRequest, db: AsyncSessi
                 "score": round(float(mood_score or 0), 2)
             })
 
-        # STEP 4: Aggregate scores per movie
+        # STEP 4: Aggregate scores per movie (FIXED: now uses AVERAGE)
         movie_scores = {}
         for movie, mood_score, mood_name in rows:
             if movie.id not in movie_scores:
                 movie_scores[movie.id] = {
                     "movie": movie,
-                    "total_score": 0.0,
+                    "mood_scores_list": [],  # Collect all matching scores
                     "matching_moods": []
                 }
-            movie_scores[movie.id]["total_score"] += float(mood_score or 0)
+            movie_scores[movie.id]["mood_scores_list"].append(float(mood_score or 0))
             movie_scores[movie.id]["matching_moods"].append(mood_name)
+
+        # Calculate average score for each movie
+        for movie_id in movie_scores:
+            scores = movie_scores[movie_id]["mood_scores_list"]
+            movie_scores[movie_id]["total_score"] = round(sum(scores) / len(scores), 2) if scores else 0.0
 
         # STEP 5: Format matched movies
         matched_movies = []
@@ -321,7 +326,7 @@ async def receive_user_input(request: MovieRecommendationRequest, db: AsyncSessi
                 "storyline": movie.storyline,
                 "moods": movie_mood_names,
                 "mood_scores": movie_all_moods.get(movie.id, []),
-                "match_score": round(total_score, 2),
+                "match_score": total_score,
                 "ai_selected": False
             })
 
@@ -331,59 +336,70 @@ async def receive_user_input(request: MovieRecommendationRequest, db: AsyncSessi
         non_selected_movies = []
 
         if request.personalNotes and matched_movies:
-            # Sort all matched movies by match_score descending
+            # Sort all matched movies by match_score descending first
             matched_movies.sort(key=lambda x: x["match_score"], reverse=True)
             
-            # Take only top 15 movies for AI evaluation
-            top_movies_for_ai = matched_movies[:15]
+            # CHANGE: Instead of [:15], we filter for scores >= 0.7
+            top_movies_for_ai = [m for m in matched_movies if m["match_score"] >= 0.7]
 
-            # Prepare AI input
-            ai_input_data = [{"title": m["title"], "storyline": m["storyline"]} for m in top_movies_for_ai]
+            # Fallback to top 5 if NO movies are >= 0.7 to ensure AI always has something
+            if not top_movies_for_ai:
+                top_movies_for_ai = matched_movies[:5]
 
-            prompt = f"""
-            User Note: "{request.personalNotes}"
-            User Preference: {request.preference}
-            Target Moods: {', '.join(target_mood_strings)}
+            if top_movies_for_ai:
+                # Prepare AI input - Only send essential data
+                ai_input_data = [
+                    {
+                        "id": m["id"],
+                        "title": m["title"],
+                        "year": m["year"],
+                    } 
+                    for m in top_movies_for_ai
+                ]
 
-            TASK:
-            Analyze which movies' storylines BEST FIT the user's personal situation described in their note.
-            Select only the movies that are truly relevant and helpful.
+                prompt = f"""
+                User Note: "{request.personalNotes}"
+                User Preference: {request.preference}
 
-            Movies to evaluate:
-            {ai_input_data}
+                TASK:
+                Find and analyze which movies' storylines BEST FIT the user's personal situation described in their note.
+                If preference is 'congruence', prioritize movies that match their current emotional state.
+                If preference is 'repair', prioritize movies that could help shift their mood positively.
+                Select only the movies that are truly relevant and helpful.
 
-            Return ONLY a comma-separated list of the movie titles that best fit, first entry should be the best fit, second, etc. 
-            If none are relevant, return "NONE".
-            """
-            try:
-                response = await client.aio.models.generate_content(
-                    model='gemini-2.5-flash',
-                    contents=prompt
-                )
+                Movies to evaluate:
+                {ai_input_data}
 
-                selected_titles = []
-                if response and response.text and response.text.strip().upper() != "NONE":
-                    selected_titles = [t.strip().lower() for t in response.text.strip().split(',')]
+                Return ONLY a comma-separated list of the movie titles that best fit, first entry should be the best fit, second, etc. 
+                If none are relevant, return "NONE".
+                """
+                try:
+                    response = await client.aio.models.generate_content(
+                        model='gemini-2.0-flash', # Note: gemini-2.0-flash is currently standard
+                        contents=prompt
+                    )
 
-                for movie in matched_movies:
-                    if movie["title"].lower() in selected_titles:
-                        movie["ai_selected"] = True
-                        movie["original_score"] = movie["match_score"]
-                        movie["match_score"] = "AI Suggested"
-                        ai_selected_movies.append(movie)
-                    else:
-                        non_selected_movies.append(movie)
+                    selected_titles = []
+                    if response and response.text and response.text.strip().upper() != "NONE":
+                        selected_titles = [t.strip().lower() for t in response.text.strip().split(',')]
 
-                # If AI returns nothing relevant
-                if not selected_titles:
+                    for movie in matched_movies:
+                        if movie["title"].lower() in selected_titles:
+                            movie["ai_selected"] = True
+                            movie["original_score"] = movie["match_score"]
+                            movie["match_score"] = "AI Suggested"
+                            ai_selected_movies.append(movie)
+                        else:
+                            non_selected_movies.append(movie)
+
+                except Exception as ai_err:
+                    print(f"AI Error: {ai_err}")
                     non_selected_movies = matched_movies.copy()
-
-            except Exception as ai_err:
-                print(f"AI Error: {ai_err}")
+            else:
+                # No movies met the 0.7 threshold
                 non_selected_movies = matched_movies.copy()
         else:
             non_selected_movies = matched_movies.copy()
-
 
         # STEP 7: Sort non-selected tier by score
         non_selected_movies.sort(key=lambda x: x["match_score"], reverse=True)
@@ -402,7 +418,6 @@ async def receive_user_input(request: MovieRecommendationRequest, db: AsyncSessi
         print("--- CRITICAL BACKEND ERROR ---")
         traceback.print_exc()
         raise HTTPException(status_code=500, detail=str(e))
-
     
 # To run the app, use `uvicorn main:app --reload`
 
