@@ -37,7 +37,7 @@ Allows users to check if a movie exists in the local database.
 
 ---
 
-## Background
+## History
 
 ### Version 1
 Movie Feels began when I noticed that although my younger sister and I both love watching movies, besides a small difference in genre taste, we watch movies for different reasons.  
