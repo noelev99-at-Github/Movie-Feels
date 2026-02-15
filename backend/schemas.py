@@ -13,5 +13,5 @@ class MovieCreate(BaseModel):
     image_url: str
     year: int
     synopsis: str
-    storyline: str
+    keyword: str
     moods: Dict[str, float]
