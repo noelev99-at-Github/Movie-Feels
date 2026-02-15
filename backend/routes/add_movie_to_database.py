@@ -18,7 +18,7 @@ async def create_movie(movie: MovieCreate, db: AsyncSession = Depends(get_db)):
             year=movie.year,
             image_url=movie.image_url,
             synopsis=movie.synopsis,
-            storyline=movie.storyline,
+            keyword=movie.keyword,
         )
 
         db.add(new_movie)
@@ -53,7 +53,7 @@ async def create_movie(movie: MovieCreate, db: AsyncSession = Depends(get_db)):
             "id": new_movie.id,
             "title": new_movie.title,
             "synopsis": new_movie.synopsis,
-            "storyline": new_movie.storyline,
+            "keyword": new_movie.keyword,
             "moods_recorded": len(movie.moods),
         }
 
