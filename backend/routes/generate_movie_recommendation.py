@@ -110,7 +110,7 @@ async def receive_user_input(request: MovieRecommendationRequest, db: AsyncSessi
                 "year": movie.year,
                 "image_url": movie.image_url,
                 "synopsis": movie.synopsis,
-                "storyline": movie.storyline,
+                "keyword": movie.keyword,
                 "moods": movie_mood_names,
                 "mood_scores": movie_all_moods.get(movie.id, []),
                 "match_score": total_score,
@@ -145,7 +145,7 @@ async def receive_user_input(request: MovieRecommendationRequest, db: AsyncSessi
                 User Preference: {request.preference}
 
                 TASK:
-                Find and analyze which movies' storylines BEST FIT the user's personal situation described in their note.
+                Find and analyze which movies' keywords BEST FIT the user's personal situation described in their note.
                 If preference is 'congruence', prioritize movies that match their current emotional state.
                 If preference is 'repair', prioritize movies that could help shift their mood positively.
                 Select only the movies that are truly relevant and helpful.
