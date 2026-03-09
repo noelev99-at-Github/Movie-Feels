@@ -41,5 +41,4 @@ Allows users to check if a movie exists in the local database.
 ## Next Steps
 Currently, I’m exploring:
 - Light machine learning  
-- Revising the database again and using keywords  
 - Experimenting with ways to better narrow down movies for recommendation and creating a high-quality list
